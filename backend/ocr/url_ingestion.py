@@ -7,8 +7,7 @@ from urllib.parse import urlparse, unquote
 import requests
 import pymupdf
 from bs4 import BeautifulSoup
-
-from extract_text import extract_pdf, make_record
+from ocr.extract_text import extract_pdf, make_record
 
 
 TIMEOUT = 20
