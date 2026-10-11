@@ -146,3 +146,12 @@ Result: PASS
 
 - Full frontend-to-backend end-to-end testing remains pending.
 
+### Successfully Tested Modules
+
+1. **PDF Upload & Text Extraction:** Successfully uploaded `Inspection_Report.pdf` and extracted 1 record.
+2. **Question Answering & Retrieval:** Retrieved MX-01 inspection information with a source reference (`Inspection_Report.pdf`, page 1).
+3. **URL Ingestion:** Successfully ingested `https://example.com`, created a text file, and indexed 1 record.
+4. **Report Generation:** Successfully generated a report containing 2 documents and the detected temperature of 72°C.
+5. **Conflict Resolution:** Successfully processed a sample conflict-resolution request and returned `RESOLVED_BY_REVIEWER`.
+
+
