@@ -1,13 +1,22 @@
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from pydantic import BaseModel
-from pathlib import Path
+import hashlib
+import ipaddress
+import socket
+import urllib.request
+import urllib.error
 import json
 import re
 
+from urllib.parse import urlparse
+from html.parser import HTMLParser
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from pydantic import BaseModel
+from pathlib import Path
+
 from ocr.extract_text import extract_file, SUPPORTED_EXTENSIONS
 
-app = FastAPI(title="Hackfest Backend")
+
+app = FastAPI(title="VeriTrace Backend")
 
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "uploads"
@@ -18,9 +27,24 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
+# -------------------- REQUEST MODELS --------------------
+
 class QuestionRequest(BaseModel):
     question: str
 
+
+class URLIngestRequest(BaseModel):
+    url: str
+
+
+class ConflictResolutionRequest(BaseModel):
+    conflict_id: str
+    selected_value: str
+    rationale: str
+    reviewed_by: str = "human_reviewer"
+
+
+# -------------------- DOCUMENT INDEX --------------------
 
 def load_index():
     if not INDEX_FILE.exists():
@@ -39,8 +63,7 @@ def save_index(records):
 
 
 def index_file(file_path):
-    # Extract first so a failed extraction does not erase
-    # any previously indexed records for this document.
+    # Extract before replacing old records.
     new_records = extract_file(str(file_path))
 
     records = load_index()
@@ -69,6 +92,8 @@ def index_existing_uploads():
             print(f"Could not index {file_path.name}: {error}")
 
 
+# -------------------- TEMPERATURE VERIFICATION --------------------
+
 def extract_temperature_records(records):
     results = []
     pattern = r"(-?\d+(?:\.\d+)?)\s*°\s*C\b"
@@ -95,17 +120,165 @@ def get_verification_status(temperature_records):
     return "REVIEW_REQUIRED" if len(values) > 1 else "PENDING"
 
 
+# -------------------- URL INGESTION --------------------
+
+class PageTextParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.parts = []
+        self.skip_tags = []
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+
+        if tag in {"script", "style", "noscript", "svg"}:
+            self.skip_tags.append(tag)
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+
+        if tag in self.skip_tags:
+            self.skip_tags.remove(tag)
+
+    def handle_data(self, data):
+        if not self.skip_tags and data.strip():
+            self.parts.append(data.strip())
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        # Do not automatically follow redirects to another destination.
+        return None
+
+
+def fetch_public_page(url):
+    try:
+        parsed = urlparse(url)
+        port = parsed.port
+    except ValueError:
+        raise ValueError("Invalid URL or port.")
+
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.query == ""
+        and not parsed.netloc
+    ):
+        raise ValueError("Provide a valid public HTTP or HTTPS URL.")
+
+    expected_port = 443 if parsed.scheme == "https" else 80
+
+    if port is not None and port != expected_port:
+        raise ValueError("Only standard HTTP and HTTPS ports are allowed.")
+
+    hostname = parsed.hostname
+
+    try:
+        addresses = {
+            item[4][0]
+            for item in socket.getaddrinfo(
+                hostname, expected_port, type=socket.SOCK_STREAM
+            )
+        }
+    except socket.gaierror:
+        raise ValueError("Could not resolve the website hostname.")
+
+    if not addresses:
+        raise ValueError("No public IP address was found.")
+
+    for address in addresses:
+        ip = ipaddress.ip_address(address)
+
+        if not ip.is_global:
+            raise ValueError("Private or non-public destinations are blocked.")
+
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": "VeriTrace/1.0"}
+    )
+
+    opener = urllib.request.build_opener(NoRedirect)
+
+    try:
+        with opener.open(request, timeout=8) as response:
+            if response.status != 200:
+                raise ValueError("Website did not return HTTP 200.")
+
+            content_type = response.headers.get(
+                "Content-Type", ""
+            ).lower()
+
+            if "text/html" not in content_type:
+                raise ValueError("URL must return an HTML webpage.")
+
+            content = response.read(2_000_001)
+
+            if len(content) > 2_000_000:
+                raise ValueError("Webpage exceeds the 2 MB limit.")
+
+            charset = response.headers.get_content_charset() or "utf-8"
+            html = content.decode(charset, errors="replace")
+
+    except urllib.error.HTTPError as error:
+        raise ValueError(
+            f"Website returned HTTP {error.code}; redirects are not followed."
+        )
+
+    parser = PageTextParser()
+    parser.feed(html)
+
+    return "\n".join(parser.parts)
+
+
+@app.post("/ingest-url")
+def ingest_url(request: URLIngestRequest):
+    try:
+        text = fetch_public_page(request.url)
+
+        if not text.strip():
+            raise ValueError("No readable webpage text was found.")
+
+        url_hash = hashlib.sha256(
+            request.url.encode("utf-8")
+        ).hexdigest()[:16]
+
+        filename = f"url_{url_hash}.txt"
+        file_path = UPLOAD_DIR / filename
+
+        file_path.write_text(text, encoding="utf-8")
+
+        records = index_file(file_path)
+
+        return {
+            "status": "SUCCESS",
+            "source_url": request.url,
+            "document": filename,
+            "records_extracted": len(records),
+            "message": "Webpage extracted and indexed successfully."
+        }
+
+    except (ValueError, urllib.error.URLError, TimeoutError, OSError) as error:
+        raise HTTPException(status_code=400, detail=str(error))
+
+
+# -------------------- STARTUP --------------------
+
 @app.on_event("startup")
 def startup():
     index_existing_uploads()
 
 
+# -------------------- HOME --------------------
+
 @app.get("/")
 def home():
-    return {"message": "Hackfest Backend is running!"}
+    return {"message": "VeriTrace Backend is running!"}
 
 
-# 1. Upload and extract documents
+# -------------------- 1. UPLOAD DOCUMENT --------------------
+
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
     filename = Path(file.filename or "uploaded_file").name
@@ -122,11 +295,18 @@ async def upload(file: UploadFile = File(...)):
         )
 
     file_path = UPLOAD_DIR / filename
-    content = await file.read()
 
     try:
-        with open(file_path, "wb") as saved_file:
-            saved_file.write(content)
+        content = await file.read(10_000_001)
+
+        if len(content) > 10_000_000:
+            raise HTTPException(
+                status_code=413,
+                detail="File exceeds the 10 MB limit."
+            )
+
+        file_path.write_bytes(content)
+
     finally:
         await file.close()
 
@@ -137,7 +317,15 @@ async def upload(file: UploadFile = File(...)):
             "message": "File uploaded and extracted successfully",
             "file": filename,
             "records_extracted": len(records),
-            "extraction_status": "SUCCESS"
+            "extraction_status": "SUCCESS",
+            "ocr_confidence": [
+                {
+                    "page": record.get("page"),
+                    "confidence": record.get("ocr_confidence"),
+                    "extraction_method": record.get("extraction_method")
+                }
+                for record in records
+            ]
         }
 
     except Exception as error:
@@ -149,7 +337,8 @@ async def upload(file: UploadFile = File(...)):
         }
 
 
-# 2. Search extracted document text
+# -------------------- 2. ASK QUESTIONS --------------------
+
 @app.post("/question")
 def question(request: QuestionRequest):
     records = load_index()
@@ -170,8 +359,7 @@ def question(request: QuestionRequest):
     matches = []
 
     for record in records:
-        text = record.get("text", "")
-        text_lower = text.lower()
+        text_lower = record.get("text", "").lower()
 
         score = sum(
             1 for word in question_words
@@ -219,7 +407,8 @@ def question(request: QuestionRequest):
     }
 
 
-# 3. Verification endpoint
+# -------------------- 3. VERIFICATION --------------------
+
 @app.get("/verification")
 def verification():
     records = load_index()
@@ -253,7 +442,8 @@ def verification():
     }
 
 
-# 4. JSON report endpoint
+# -------------------- 4. REPORT --------------------
+
 @app.get("/report")
 def report():
     records = load_index()
@@ -288,4 +478,36 @@ def report():
             else "No differing temperature values detected, "
                  "or more information is needed."
         )
+    }
+
+
+# -------------------- 5. RESOLVE CONFLICT --------------------
+
+@app.post("/resolve-conflict")
+def resolve_conflict(request: ConflictResolutionRequest):
+    if not request.conflict_id.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="conflict_id is required"
+        )
+
+    if not request.selected_value.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="selected_value is required"
+        )
+
+    if not request.rationale.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="A rationale is required"
+        )
+
+    return {
+        "status": "RESOLVED_BY_REVIEWER",
+        "conflict_id": request.conflict_id,
+        "selected_value": request.selected_value,
+        "rationale": request.rationale,
+        "reviewed_by": request.reviewed_by,
+        "automatically_verified": False
     }
