@@ -1,0 +1,112 @@
+{
+  "status": "UNRESOLVED",
+  "recommendation": "Keep both original readings, flag the discrepancy for review, and do not choose a value automatically.",
+  "recommended_value": null,
+  "original_claims": [
+    {
+      "entity": "MX-01",
+      "claim": "temperature",
+      "value": 72.0,
+      "unit": "°C",
+      "claim_kind": "measurement",
+      "source": "Inspection_Report.pdf",
+      "page": 1,
+      "source_reference": "Inspection_Report.pdf#page=1",
+      "source_hash": "a015429fab22a06eb22d539f6f6f49ae02ae21681b28ae2d6adf16c2ec0d043a",
+      "evidence_text": "Measured Operating Temperature: 72°C",
+      "chunk_id": "ac8a21d21d5d481555e938d422fb63c55e1422ec5279bbeddf184584e92dc12c",
+      "timestamp_text": "03 October 2026"
+    },
+    {
+      "entity": "MX-01",
+      "claim": "temperature",
+      "value": 91.0,
+      "unit": "°C",
+      "claim_kind": "measurement",
+      "source": "Technician_Log.pdf",
+      "page": 1,
+      "source_reference": "Technician_Log.pdf#page=1",
+      "source_hash": "4a5e6c81b7b7c5ab8eef92dd9c710eb039c622dac24cebdb65bc4fadf3eff50f",
+      "evidence_text": "Observed Temperature: 91°C",
+      "chunk_id": "250c8f22792f21ab36585f246d203960dcdd0e30fbbc694cde509b895af1212c"
+    }
+  ],
+  "supporting_evidence": [
+    {
+      "chunk_id": "ac8a21d21d5d481555e938d422fb63c55e1422ec5279bbeddf184584e92dc12c",
+      "evidence_id": "MX-01",
+      "entities": [
+        "MX-01"
+      ],
+      "document": "Inspection_Report.pdf",
+      "page": 1,
+      "text": "INSPECTION REPORT\nMachine ID: MX-01\nInspection Date: 03 October 2026\nMeasured Operating Temperature: 72°C\nVibration Level: Medium\nObserved Condition: Machine operating normally.\nInspector Recommendation: Continue monitoring temperature and vibration.",
+      "source_hash": "a015429fab22a06eb22d539f6f6f49ae02ae21681b28ae2d6adf16c2ec0d043a",
+      "source_reference": "Inspection_Report.pdf#page=1",
+      "source_type": "document",
+      "location": "page 1, lines 1–7",
+      "extraction_method": "text",
+      "metadata": {
+        "provenance": "ocr_output",
+        "verification_status": "NOT_VERIFIED"
+      }
+    },
+    {
+      "chunk_id": "250c8f22792f21ab36585f246d203960dcdd0e30fbbc694cde509b895af1212c",
+      "evidence_id": "MX-01",
+      "entities": [
+        "MX-01"
+      ],
+      "document": "Technician_Log.pdf",
+      "page": 1,
+      "text": "TECHNICIAN LOG\nMachine ID: MX-01\nTechnician: Ravi Kumar\nObserved Temperature: 91°C\nIssue: Unusual vibration detected.",
+      "source_hash": "4a5e6c81b7b7c5ab8eef92dd9c710eb039c622dac24cebdb65bc4fadf3eff50f",
+      "source_reference": "Technician_Log.pdf#page=1",
+      "source_type": "document",
+      "location": "page 1, lines 1–5",
+      "extraction_method": "text",
+      "metadata": {
+        "provenance": "ocr_output",
+        "verification_status": "NOT_VERIFIED"
+      }
+    }
+  ],
+  "reasoning": [
+    "The supported values differ, and available dates/context do not explain the difference.",
+    "Source relevance identifies evidence about the same machine and attribute; it does not establish which source is correct."
+  ],
+  "comparisons": [
+    {
+      "claim_indices": [
+        0,
+        1
+      ],
+      "source_references": [
+        "Inspection_Report.pdf#page=1",
+        "Technician_Log.pdf#page=1"
+      ],
+      "normalized_values": [
+        72.0,
+        91.0
+      ],
+      "comparison_unit": "°C",
+      "dates": [
+        "2026-10-03T00:00:00",
+        null
+      ],
+      "outcome": "CONFLICT",
+      "reasoning": "The supported values differ, and available dates/context do not explain the difference."
+    }
+  ],
+  "uncertainty": {
+    "level": "high",
+    "limitations": [
+      "Source authority, measurement conditions, timestamps or instrument calibration are insufficient to select a correct reading."
+    ]
+  },
+  "next_steps": [
+    "Check measurement timestamps and operating conditions.",
+    "Confirm sensor calibration and obtain a repeat measurement or a dated authoritative record."
+  ],
+  "question": "What was the temperature of MX-01?"
+}
