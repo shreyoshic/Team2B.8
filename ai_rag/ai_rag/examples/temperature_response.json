@@ -1,0 +1,157 @@
+{
+  "question": "What was the temperature of MX-01?",
+  "answer": "[Inspection_Report.pdf#page=1]\nINSPECTION REPORT\nMachine ID: MX-01\nInspection Date: 03 October 2026\nMeasured Operating Temperature: 72°C\nVibration Level: Medium\nObserved Condition: Machine operating normally.\nInspector Recommendation: Continue monitoring temperature and vibration.\n\n[Machine_Manual.pdf#page=1]\nMACHINE MANUAL\nMachine ID: MX-01\nMachine Type: Industrial Hydraulic Press\nRecommended Operating Temperature: 60–75°C\nMaximum Operating Temperature: 80°C\nNormal vibration: Low\nCooling System: Liquid cooling\nMaintenance Interval: Every 500 operating hours\n\n[Technician_Log.pdf#page=1]\nTECHNICIAN LOG\nMachine ID: MX-01\nTechnician: Ravi Kumar\nObserved Temperature: 91°C\nIssue: Unusual vibration detected.",
+  "sources": [
+    {
+      "chunk_id": "ac8a21d21d5d481555e938d422fb63c55e1422ec5279bbeddf184584e92dc12c",
+      "evidence_id": "MX-01",
+      "entities": [
+        "MX-01"
+      ],
+      "document": "Inspection_Report.pdf",
+      "page": 1,
+      "text": "INSPECTION REPORT\nMachine ID: MX-01\nInspection Date: 03 October 2026\nMeasured Operating Temperature: 72°C\nVibration Level: Medium\nObserved Condition: Machine operating normally.\nInspector Recommendation: Continue monitoring temperature and vibration.",
+      "source_hash": "a015429fab22a06eb22d539f6f6f49ae02ae21681b28ae2d6adf16c2ec0d043a",
+      "source_reference": "Inspection_Report.pdf#page=1",
+      "source_type": "document",
+      "location": "page 1, lines 1–7",
+      "extraction_method": "text",
+      "metadata": {
+        "provenance": "ocr_output",
+        "verification_status": "NOT_VERIFIED"
+      },
+      "score": 0.6567
+    },
+    {
+      "chunk_id": "7ceff1a42eb0b0288e7137886614db6066801528b788e94d707ddbd593482fab",
+      "evidence_id": "MX-01",
+      "entities": [
+        "MX-01"
+      ],
+      "document": "Machine_Manual.pdf",
+      "page": 1,
+      "text": "MACHINE MANUAL\nMachine ID: MX-01\nMachine Type: Industrial Hydraulic Press\nRecommended Operating Temperature: 60–75°C\nMaximum Operating Temperature: 80°C\nNormal vibration: Low\nCooling System: Liquid cooling\nMaintenance Interval: Every 500 operating hours",
+      "source_hash": "03ae9d536abccc6edbfcdd798133cd059205770c0c667bac566bc84d1de5d97a",
+      "source_reference": "Machine_Manual.pdf#page=1",
+      "source_type": "document",
+      "location": "page 1, lines 1–8",
+      "extraction_method": "text",
+      "metadata": {
+        "provenance": "ocr_output",
+        "verification_status": "NOT_VERIFIED"
+      },
+      "score": 0.5568
+    },
+    {
+      "chunk_id": "250c8f22792f21ab36585f246d203960dcdd0e30fbbc694cde509b895af1212c",
+      "evidence_id": "MX-01",
+      "entities": [
+        "MX-01"
+      ],
+      "document": "Technician_Log.pdf",
+      "page": 1,
+      "text": "TECHNICIAN LOG\nMachine ID: MX-01\nTechnician: Ravi Kumar\nObserved Temperature: 91°C\nIssue: Unusual vibration detected.",
+      "source_hash": "4a5e6c81b7b7c5ab8eef92dd9c710eb039c622dac24cebdb65bc4fadf3eff50f",
+      "source_reference": "Technician_Log.pdf#page=1",
+      "source_type": "document",
+      "location": "page 1, lines 1–5",
+      "extraction_method": "text",
+      "metadata": {
+        "provenance": "ocr_output",
+        "verification_status": "NOT_VERIFIED"
+      },
+      "score": 0.499
+    }
+  ],
+  "claims": [
+    {
+      "entity": "MX-01",
+      "claim": "temperature",
+      "value": 72.0,
+      "unit": "°C",
+      "claim_kind": "measurement",
+      "source": "Inspection_Report.pdf",
+      "page": 1,
+      "source_reference": "Inspection_Report.pdf#page=1",
+      "source_hash": "a015429fab22a06eb22d539f6f6f49ae02ae21681b28ae2d6adf16c2ec0d043a",
+      "evidence_text": "Measured Operating Temperature: 72°C",
+      "chunk_id": "ac8a21d21d5d481555e938d422fb63c55e1422ec5279bbeddf184584e92dc12c",
+      "timestamp_text": "03 October 2026"
+    },
+    {
+      "entity": "MX-01",
+      "claim": "temperature",
+      "value": [
+        60.0,
+        75.0
+      ],
+      "unit": "°C",
+      "claim_kind": "recommended_range",
+      "source": "Machine_Manual.pdf",
+      "page": 1,
+      "source_reference": "Machine_Manual.pdf#page=1",
+      "source_hash": "03ae9d536abccc6edbfcdd798133cd059205770c0c667bac566bc84d1de5d97a",
+      "evidence_text": "Recommended Operating Temperature: 60–75°C",
+      "chunk_id": "7ceff1a42eb0b0288e7137886614db6066801528b788e94d707ddbd593482fab"
+    },
+    {
+      "entity": "MX-01",
+      "claim": "temperature",
+      "value": 80.0,
+      "unit": "°C",
+      "claim_kind": "maximum",
+      "source": "Machine_Manual.pdf",
+      "page": 1,
+      "source_reference": "Machine_Manual.pdf#page=1",
+      "source_hash": "03ae9d536abccc6edbfcdd798133cd059205770c0c667bac566bc84d1de5d97a",
+      "evidence_text": "Maximum Operating Temperature: 80°C",
+      "chunk_id": "7ceff1a42eb0b0288e7137886614db6066801528b788e94d707ddbd593482fab"
+    },
+    {
+      "entity": "MX-01",
+      "claim": "temperature",
+      "value": 91.0,
+      "unit": "°C",
+      "claim_kind": "measurement",
+      "source": "Technician_Log.pdf",
+      "page": 1,
+      "source_reference": "Technician_Log.pdf#page=1",
+      "source_hash": "4a5e6c81b7b7c5ab8eef92dd9c710eb039c622dac24cebdb65bc4fadf3eff50f",
+      "evidence_text": "Observed Temperature: 91°C",
+      "chunk_id": "250c8f22792f21ab36585f246d203960dcdd0e30fbbc694cde509b895af1212c"
+    }
+  ],
+  "verification_claims": [
+    {
+      "entity": "MX-01",
+      "claim": "temperature",
+      "value": 72.0,
+      "unit": "°C",
+      "claim_kind": "measurement",
+      "source": "Inspection_Report.pdf",
+      "page": 1,
+      "source_reference": "Inspection_Report.pdf#page=1",
+      "source_hash": "a015429fab22a06eb22d539f6f6f49ae02ae21681b28ae2d6adf16c2ec0d043a",
+      "evidence_text": "Measured Operating Temperature: 72°C",
+      "chunk_id": "ac8a21d21d5d481555e938d422fb63c55e1422ec5279bbeddf184584e92dc12c",
+      "timestamp_text": "03 October 2026"
+    },
+    {
+      "entity": "MX-01",
+      "claim": "temperature",
+      "value": 91.0,
+      "unit": "°C",
+      "claim_kind": "measurement",
+      "source": "Technician_Log.pdf",
+      "page": 1,
+      "source_reference": "Technician_Log.pdf#page=1",
+      "source_hash": "4a5e6c81b7b7c5ab8eef92dd9c710eb039c622dac24cebdb65bc4fadf3eff50f",
+      "evidence_text": "Observed Temperature: 91°C",
+      "chunk_id": "250c8f22792f21ab36585f246d203960dcdd0e30fbbc694cde509b895af1212c"
+    }
+  ],
+  "retrieval_status": "EVIDENCE_FOUND",
+  "verification_status": "NOT_VERIFIED",
+  "conflicts": [],
+  "verification": null
+}
