@@ -1,55 +1,466 @@
+
 import "./App.css";
 import { useEffect, useState } from "react";
+import { apiRequest } from "./api";
 
 function App() {
+  const [page, setPage] = useState("welcome");
+  const [user, setUser] = useState(null);
   const [files, setFiles] = useState([]);
   const [question, setQuestion] = useState("");
-  const [showResults, setShowResults] = useState(false);
+  const [questionResult, setQuestionResult] = useState(null);
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const savedFiles = JSON.parse(
-      localStorage.getItem("uploadedFiles") || "[]"
+    if (!user) return;
+
+    const saved = JSON.parse(
+      localStorage.getItem(`uploadedFiles_${user.email}`) || "[]"
     );
 
-    setFiles(savedFiles);
-  }, []);
+    setFiles(saved);
+  }, [user]);
 
-  function handleFileChange(event) {
-    const selectedFiles = Array.from(event.target.files);
-
-    const newFiles = selectedFiles.map((file) => ({
-      name: file.name,
-      size: file.size,
-      type: file.type
-    }));
-
-    const updatedFiles = [...files, ...newFiles];
-
+  function saveFiles(updatedFiles) {
     setFiles(updatedFiles);
-    localStorage.setItem("uploadedFiles", JSON.stringify(updatedFiles));
 
-    event.target.value = "";
+    if (user) {
+      localStorage.setItem(
+        `uploadedFiles_${user.email}`,
+        JSON.stringify(updatedFiles)
+      );
+    }
   }
 
-  function removeFile(index) {
-    const updatedFiles = files.filter((_, i) => i !== index);
+  
+async function handleFileChange(event) {
+  const selected = Array.from(event.target.files);
+  console.log("SELECTED FILES:", selected);
+  event.target.value = "";
 
-    setFiles(updatedFiles);
-    localStorage.setItem("uploadedFiles", JSON.stringify(updatedFiles));
+  if (selected.length === 0) return;
+
+  setLoading(true);
+  setMessage("");
+
+  const uploadedFiles = [];
+
+  for (const file of selected) {
+    console.log("STARTING UPLOAD:", file.name);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const result = await apiRequest("/upload", {
+        method: "POST",
+        body: formData
+      });
+
+      uploadedFiles.push({
+        name: file.name,
+        size: file.size,
+        type: file.type
+      });
+
+      setMessage(
+        `${file.name}: ${result.message}. Extracted records: ${result.records_extracted ?? 0}.`
+      );
+    } catch (error) {
+      setMessage(
+        `Could not upload ${file.name}. ${error.message}`
+      );
+    }
   }
 
-  function resetFiles() {
-    setFiles([]);
-    localStorage.removeItem("uploadedFiles");
-    setShowResults(false);
+  if (uploadedFiles.length > 0) {
+    saveFiles([...files, ...uploadedFiles]);
   }
 
-  function handleAsk() {
+  setLoading(false);
+}
+
+  
+async function removeFile(index) {
+  const file = files[index];
+
+  if (!file) return;
+
+  setLoading(true);
+  setMessage("");
+
+  try {
+    await apiRequest(
+      `/documents/${encodeURIComponent(file.name)}`,
+      { method: "DELETE" }
+    );
+
+    saveFiles(files.filter((_, i) => i !== index));
+    setMessage(`${file.name} deleted successfully.`);
+  } catch (error) {
+    setMessage(`Could not delete file: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+}
+
+  
+async function resetFiles() {
+  setLoading(true);
+  setMessage("");
+
+  try {
+    await apiRequest("/documents", {
+      method: "DELETE"
+    });
+
+    saveFiles([]);
+    setQuestionResult(null);
+    setMessage("All documents deleted successfully.");
+  } catch (error) {
+    setMessage(`Could not clear documents: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+}
+
+  async function handleAsk() {
     if (!question.trim()) {
+      setMessage("Enter a question first.");
       return;
     }
 
-    setShowResults(true);
+    setLoading(true);
+    setMessage("");
+
+    try {
+      
+const result = await apiRequest("/question", {
+  method: "POST",
+  body: JSON.stringify({ question })
+});
+
+setQuestionResult(result);
+
+setMessage(
+  result.answer || result.message || "The backend received your question."
+);
+    } catch {
+      setMessage(
+        "Could not get an answer from the backend. Make sure it is running."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleGenerateReport() {
+    setLoading(true);
+    setMessage("");
+
+    try {
+      const report = await apiRequest("/report");
+
+      const reportText = [
+        "VERITRACE - CONSOLIDATED VERIFICATION REPORT",
+        "=".repeat(48),
+        "",
+        `Status: ${report.report_status}`,
+        `Documents processed: ${report.documents_count}`,
+        `Message: ${report.message}`,
+        "",
+        "DOCUMENTS",
+        ...report.documents.map(
+          (doc) => `${doc.filename} | Pages: ${doc.pages}`
+        ),
+        "",
+        "DETECTED TEMPERATURES",
+        ...report.temperatures_found.map(
+          (item) =>
+            `${item.temperature_celsius}°C | ${item.document} | Page ${item.page}`
+        ),
+        "",
+        "REVIEW NOTE",
+        "Review extracted values and their source citations. Treat differences as potential conflicts until their context is verified."
+        ,
+        "",
+        "Generated by VeriTrace"
+      ].join("\n");
+
+      const blob = new Blob([reportText], {
+        type: "text/plain;charset=utf-8"
+      });
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "VeriTrace_Report.txt";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+
+      setMessage("Report generated and downloaded successfully.");
+    } catch (error) {
+      setMessage(`Could not generate report. ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleRegister(event) {
+    event.preventDefault();
+
+    const form = new FormData(event.currentTarget);
+    const name = String(form.get("name") || "").trim();
+    const email = String(form.get("email") || "").trim().toLowerCase();
+    const password = String(form.get("password") || "");
+    const role = String(form.get("role") || "user");
+
+    if (!name || !email || password.length < 8) {
+      setMessage("Enter all details. Password must be at least 8 characters.");
+      return;
+    }
+
+    setMessage(
+      "Registration UI is ready, but secure account creation must be connected to backend authentication."
+    );
+  }
+
+  function handleLogin(event) {
+    event.preventDefault();
+
+    setMessage(
+      "Login UI is ready. Secure sign-in is not connected yet, so no account has been authenticated."
+    );
+  }
+
+  function logout() {
+    setUser(null);
+    setFiles([]);
+    setQuestion("");
+    setMessage("");
+    setPage("welcome");
+  }
+
+  function startDemo() {
+    setUser({
+      name: "Demo User",
+      email: "demo@veritrace.local",
+      role: "user",
+      demo: true
+    });
+
+    setPage("dashboard");
+    setMessage(
+      "Demo mode: account authentication and private document storage are not enabled."
+    );
+  }
+
+  if (page === "welcome") {
+    return (
+      <div className="auth-page">
+        <div className="auth-layout">
+          <div className="auth-intro">
+            <div className="brand-mark">
+              <span className="brand-symbol">V</span>
+              VeriTrace
+            </div>
+
+            <h1>Evidence you can <span>trace.</span></h1>
+
+            <p>
+              Bring documents together, examine evidence, identify
+              inconsistencies, and build reports where every claim can
+              be traced to its source.
+            </p>
+
+            <div className="auth-features">
+              <div className="auth-feature">
+                <span>✓</span> Multi-source document analysis
+              </div>
+              <div className="auth-feature">
+                <span>✓</span> Traceable evidence and citations
+              </div>
+              <div className="auth-feature">
+                <span>✓</span> Conflict-aware verification
+              </div>
+            </div>
+          </div>
+
+          <div className="auth-card">
+            <h2>Get started</h2>
+            <p className="auth-subtitle">
+              Your workspace for evidence-grounded documents.
+            </p>
+
+            <button
+              className="auth-primary-button"
+              onClick={() => {
+                setMessage("");
+                setPage("register");
+              }}
+            >
+              Create an account
+            </button>
+
+            <button
+              className="auth-primary-button"
+              style={{
+                marginTop: 12,
+                background: "transparent",
+                color: "#38bdf8"
+              }}
+              onClick={() => {
+                setMessage("");
+                setPage("login");
+              }}
+            >
+              Log in
+            </button>
+
+            <p className="auth-switch">Want to explore the interface?</p>
+
+            <button className="auth-primary-button" onClick={startDemo}>
+              Open demo workspace
+            </button>
+
+            <p className="auth-footer">
+              Demo mode is for interface testing only. It does not
+              provide authenticated or private storage.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (page === "register") {
+    return (
+      <div className="auth-page">
+        <div className="auth-card" style={{ width: "min(100%, 460px)" }}>
+          <button className="auth-back" onClick={() => setPage("welcome")}>
+            ← Back
+          </button>
+
+          <h2>Create your account</h2>
+          <p className="auth-subtitle">
+            Set up your VeriTrace workspace.
+          </p>
+
+          <form className="auth-form" onSubmit={handleRegister}>
+            <div className="auth-field">
+              <label htmlFor="register-name">Full name</label>
+              <input id="register-name" name="name" required />
+            </div>
+
+            <div className="auth-field">
+              <label htmlFor="register-email">Email address</label>
+              <input
+                id="register-email"
+                name="email"
+                type="email"
+                required
+              />
+            </div>
+
+            <div className="auth-field">
+              <label htmlFor="register-password">Password</label>
+              <input
+                id="register-password"
+                name="password"
+                type="password"
+                minLength="8"
+                required
+              />
+            </div>
+
+            <div className="auth-field">
+              <label htmlFor="register-role">Workspace role</label>
+              <select id="register-role" name="role">
+                <option value="user">Standard user</option>
+                <option value="analyst">Analyst</option>
+                <option value="reviewer">Reviewer</option>
+              </select>
+            </div>
+
+            <button className="auth-primary-button" type="submit">
+              Create account
+            </button>
+          </form>
+
+          
+{message && <p className="auth-message">{message}</p>}
+
+
+
+          <p className="auth-switch">
+            Already registered?{" "}
+            <button className="auth-link" onClick={() => {
+              setMessage("");
+              setPage("login");
+            }}>
+              Log in
+            </button>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (page === "login") {
+    return (
+      <div className="auth-page">
+        <div className="auth-card" style={{ width: "min(100%, 460px)" }}>
+          <button className="auth-back" onClick={() => setPage("welcome")}>
+            ← Back
+          </button>
+
+          <h2>Welcome back</h2>
+          <p className="auth-subtitle">
+            Log in to access your document workspace.
+          </p>
+
+          <form className="auth-form" onSubmit={handleLogin}>
+            <div className="auth-field">
+              <label htmlFor="login-email">Email address</label>
+              <input
+                id="login-email"
+                name="email"
+                type="email"
+                required
+              />
+            </div>
+
+            <div className="auth-field">
+              <label htmlFor="login-password">Password</label>
+              <input
+                id="login-password"
+                name="password"
+                type="password"
+                required
+              />
+            </div>
+
+            <button className="auth-primary-button" type="submit">
+              Log in
+            </button>
+          </form>
+
+          {message && <p className="auth-message">{message}</p>}
+
+          <p className="auth-switch">
+            New to VeriTrace?{" "}
+            <button className="auth-link" onClick={() => {
+              setMessage("");
+              setPage("register");
+            }}>
+              Create an account
+            </button>
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -57,48 +468,44 @@ function App() {
       <header className="header">
         <div>
           <h1>VeriTrace</h1>
-          <p>Evidence-grounded, not just AI-generated.</p>
+          <p>Multi-Source Ingestion into a Single Verifiable Document</p>
+        </div>
+
+        <div style={{ marginTop: 18 }}>
+          <span style={{ color: "#94a3b8", marginRight: 14 }}>
+            {user?.name}
+          </span>
+          <button className="reset-button" onClick={logout}>
+            Log out
+          </button>
         </div>
       </header>
 
       <main className="container">
-
-        <section className="section upload-section">
-          <div className="section-title">
-            <div>
-              <h2>Upload Documents</h2>
-              <p>
-                Add reports, manuals, logs, and other source documents.
-              </p>
-            </div>
-          </div>
+        <section className="section">
+          <h2>Document workspace</h2>
+          <p style={{ color: "#94a3b8" }}>
+            Upload source documents and work with their evidence.
+          </p>
 
           <label className="upload-box">
             <input
               type="file"
               multiple
+              accept=".pdf,.txt,.log,.docx,.pptx,.xlsx,.csv,.png,.jpg,.jpeg"
               onChange={handleFileChange}
             />
-
             <span className="upload-icon">+</span>
-
             <strong>Choose documents</strong>
-
-            <span>
-              PDF, TXT and LOG files supported
-            </span>
+            <span>PDF, TXT, LOG, DOCX, PPTX, XLSX, CSV and images</span>
           </label>
 
           {files.length > 0 && (
             <div className="file-list-container">
               <div className="file-list-header">
-                <h3>Uploaded Documents</h3>
-
-                <button
-                  className="reset-button"
-                  onClick={resetFiles}
-                >
-                  Reset All
+                <h3>Document library</h3>
+                <button className="reset-button" onClick={resetFiles}>
+                  Clear list
                 </button>
               </div>
 
@@ -106,14 +513,14 @@ function App() {
                 {files.map((file, index) => (
                   <div className="file-item" key={`${file.name}-${index}`}>
                     <div className="file-info">
-                      <span className="file-icon">PDF</span>
-
+                      <span className="file-icon">
+                        {(file.name.split(".").pop() || "FILE")
+                          .slice(0, 4)
+                          .toUpperCase()}
+                      </span>
                       <div>
                         <strong>{file.name}</strong>
-
-                        <span>
-                          {(file.size / 1024).toFixed(1)} KB
-                        </span>
+                        <span>{(file.size / 1024).toFixed(1)} KB</span>
                       </div>
                     </div>
 
@@ -130,176 +537,150 @@ function App() {
           )}
         </section>
 
-
         <section className="section">
           <div className="section-title">
             <div>
-              <h2>Ask a Question</h2>
-              <p>
-                Ask something about the uploaded evidence.
-              </p>
+              <h2>Ask a question</h2>
+              <p>Ask about evidence in your source documents.</p>
             </div>
           </div>
 
           <div className="question-box">
             <input
-              type="text"
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  handleAsk();
-                }
+                if (event.key === "Enter") handleAsk();
               }}
-              placeholder="What temperature readings were reported for MX-01?"
+              placeholder="Ask a question about your evidence..."
             />
-
             <button
               className="ask-button"
               onClick={handleAsk}
+              disabled={loading}
             >
-              Ask
+              {loading ? "Asking..." : "Ask"}
             </button>
           </div>
+
+          {message && <p className="auth-message">{message}</p>}
+
+          {questionResult && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(0, 1fr)",
+                gap: 16,
+                marginTop: 22,
+              }}
+            >
+              <div
+                style={{
+                  background: "rgba(15, 23, 42, 0.72)",
+                  border: "1px solid rgba(96, 165, 250, 0.35)",
+                  borderRadius: 14,
+                  padding: 20,
+                  minWidth: 0,
+                }}
+              >
+                <h3 style={{ marginTop: 0, color: "#93c5fd" }}>Answer</h3>
+                <p style={{
+                 color: "#e2e8f0",
+                 lineHeight: 1.7,
+                 overflowWrap: "anywhere",
+                 whiteSpace: "pre-wrap"
+                 }}>
+                  {questionResult.answer || "No answer returned."}
+                </p>
+              </div>
+
+              <div
+                style={{
+                  background: "rgba(15, 23, 42, 0.72)",
+                  border: "1px solid rgba(167, 139, 250, 0.35)",
+                  borderRadius: 14,
+                  padding: 20,
+                  minWidth: 0,
+                }}
+              >
+                <h3 style={{ marginTop: 0, color: "#c4b5fd" }}>Sources</h3>
+                {questionResult.sources?.length > 0 ? (
+                  <ul style={{ color: "#e2e8f0", lineHeight: 1.8, paddingLeft: 20, overflowWrap: "anywhere" }}>
+                    {questionResult.sources.map((source, index) => (
+                      <li key={index}>{source}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p style={{ color: "#94a3b8" }}>No sources returned.</p>
+                )}
+              </div>
+
+              <div
+                style={{
+                  background: "rgba(15, 23, 42, 0.72)",
+                  border: "1px solid rgba(52, 211, 153, 0.35)",
+                  borderRadius: 14,
+                  padding: 20,
+                  minWidth: 0,
+                }}
+              >
+                <h3 style={{ marginTop: 0, color: "#6ee7b7" }}>Verification status</h3>
+                <p
+                  style={{
+                    display: "inline-block",
+                    padding: "7px 11px",
+                    borderRadius: 999,
+                    background: "rgba(52, 211, 153, 0.12)",
+                    color: "#a7f3d0",
+                    fontWeight: 600,
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  {questionResult.verification_status || "PENDING"}
+                </p>
+              </div>
+
+              <div
+                style={{
+                  background: "rgba(15, 23, 42, 0.72)",
+                  border: "1px solid rgba(248, 113, 113, 0.35)",
+                  borderRadius: 14,
+                  padding: 20,
+                  minWidth: 0,
+                }}
+              >
+                <h3 style={{ marginTop: 0, color: "#fca5a5" }}>Potential conflicts</h3>
+                {questionResult.conflicts?.length > 0 ? (
+                  <ul style={{ color: "#e2e8f0", lineHeight: 1.8, paddingLeft: 20, overflowWrap: "anywhere" }}>
+                    {questionResult.conflicts.map((conflict, index) => (
+                      <li key={index}>
+                        {conflict.document}: {conflict.temperature_celsius}°C
+                        {conflict.page != null ? `, page ${conflict.page}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p style={{ color: "#94a3b8" }}>No potential conflicts returned for this question.</p>
+                )}
+              </div>
+            </div>
+          )}
         </section>
 
-
-        {showResults && (
-          <>
-            <section className="section">
-              <div className="section-title">
-                <div>
-                  <h2>Answer</h2>
-                  <p>Evidence-grounded response</p>
-                </div>
-
-                <span className="verified-badge">
-                  Verified Evidence
-                </span>
-              </div>
-
-              <div className="answer">
-                <p>
-                  MX-01 was reported at two different temperatures:
-                </p>
-
-                <div className="temperature-values">
-                  <span>72°C</span>
-                  <span>91°C</span>
-                </div>
-
-                <p>
-                  The two source documents contain conflicting
-                  temperature readings for the same machine.
-                </p>
-              </div>
-            </section>
-
-
-            <section className="section">
-              <div className="section-title">
-                <div>
-                  <h2>Sources</h2>
-                  <p>Evidence used to produce the answer</p>
-                </div>
-              </div>
-
-              <div className="source-card">
-                <div className="source-top">
-                  <strong>Inspection_Report.pdf</strong>
-                  <span>Page 1</span>
-                </div>
-
-                <p>
-                  Measured Operating Temperature: <strong>72°C</strong>
-                </p>
-              </div>
-
-              <div className="source-card">
-                <div className="source-top">
-                  <strong>Technician_Log.pdf</strong>
-                  <span>Page 1</span>
-                </div>
-
-                <p>
-                  Observed Temperature: <strong>91°C</strong>
-                </p>
-              </div>
-
-              <div className="source-card">
-                <div className="source-top">
-                  <strong>Machine_Manual.pdf</strong>
-                  <span>Page 1</span>
-                </div>
-
-                <p>
-                  Recommended operating temperature:
-                  <strong> 60–75°C</strong>
-                </p>
-              </div>
-            </section>
-
-
-            <section className="section">
-              <div className="section-title">
-                <div>
-                  <h2>Conflicts</h2>
-                  <p>Detected inconsistencies between sources</p>
-                </div>
-
-                <span className="conflict-badge">
-                  1 Conflict
-                </span>
-              </div>
-
-              <div className="conflict">
-                <div className="conflict-header">
-                  <strong>Temperature Conflict</strong>
-                  <span>CONFLICT</span>
-                </div>
-
-                <p>
-                  Multiple sources report different temperatures
-                  for the same machine.
-                </p>
-
-                <div className="conflict-values">
-                  <div>
-                    <strong>72°C</strong>
-                    <span>Inspection Report</span>
-                  </div>
-
-                  <div>
-                    <strong>91°C</strong>
-                    <span>Technician Log</span>
-                  </div>
-                </div>
-
-                <p className="conflict-note">
-                  VeriTrace does not arbitrarily choose one value.
-                  Both source claims are preserved for verification.
-                </p>
-              </div>
-            </section>
-
-
-            <section className="section report-section">
-              <div>
-                <h2>Verified Report</h2>
-
-                <p>
-                  Generate a consolidated report containing the
-                  answer, supporting sources, and detected conflicts.
-                </p>
-              </div>
-
-              <button className="report-button">
-                Generate Verified Report
-              </button>
-            </section>
-          </>
-        )}
-
+        <section className="section">
+          <h2>Reports and history</h2>
+          <p style={{ color: "#94a3b8" }}>
+            Generate a consolidated report containing uploaded documents, detected temperatures, and the current verification status.
+          </p>
+          <button
+            className="ask-button"
+            onClick={handleGenerateReport}
+            disabled={loading}
+          >
+            {loading ? "Generating Report..." : "Generate & Download Report"}
+          </button>
+          {message && <p className="auth-message">{message}</p>}
+        </section>
       </main>
     </div>
   );
