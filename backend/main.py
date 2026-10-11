@@ -1,4 +1,4 @@
-
+﻿
 import hashlib
 import ipaddress
 import socket
@@ -17,6 +17,22 @@ from ocr.extract_text import extract_file, SUPPORTED_EXTENSIONS
 
 
 app = FastAPI(title="VeriTrace Backend")
+from fastapi.middleware.cors import CORSMiddleware
+
+origins = [
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "uploads"
@@ -94,9 +110,10 @@ def index_existing_uploads():
 
 # -------------------- TEMPERATURE VERIFICATION --------------------
 
+
 def extract_temperature_records(records):
     results = []
-    pattern = r"(-?\d+(?:\.\d+)?)\s*°\s*C\b"
+    pattern = r"(-?\d+(?:\.\d+)?)\s*(?:°|┬░)?\s*C\b"
 
     for record in records:
         text = record.get("text", "")
@@ -104,20 +121,12 @@ def extract_temperature_records(records):
         for match in re.finditer(pattern, text, re.IGNORECASE):
             results.append({
                 "temperature_celsius": float(match.group(1)),
-                "document": record.get("document"),
-                "page": record.get("page")
+                "document": record.get("document", "unknown"),
+                "page": record.get("page", "unknown"),
+                "evidence": text[max(0, match.start() - 100):match.end() + 100].strip()
             })
 
     return results
-
-
-def get_verification_status(temperature_records):
-    values = {
-        item["temperature_celsius"]
-        for item in temperature_records
-    }
-
-    return "REVIEW_REQUIRED" if len(values) > 1 else "PENDING"
 
 
 # -------------------- URL INGESTION --------------------
@@ -339,17 +348,35 @@ async def upload(file: UploadFile = File(...)):
 
 # -------------------- 2. ASK QUESTIONS --------------------
 
+def get_verification_status(temperature_records):
+    values = {
+        item["temperature_celsius"]
+        for item in temperature_records
+    }
+
+    return "REVIEW_REQUIRED" if len(values) > 1 else "PENDING"
+
 @app.post("/question")
 def question(request: QuestionRequest):
     records = load_index()
-    question_text = request.question.lower()
+    question_text = request.question.lower().strip()
+
+    if not records:
+        return {
+            "question": request.question,
+            "answer": "No documents have been indexed yet. Upload documents first.",
+            "sources": [],
+            "conflicts": [],
+            "verification_status": "PENDING"
+        }
 
     stop_words = {
         "what", "is", "the", "a", "an", "of", "in", "to",
         "for", "and", "does", "do", "tell", "me", "about",
         "please", "can", "you", "was", "were", "recorded",
         "found", "show", "give", "find", "with", "on", "at",
-        "it", "this", "that"
+        "it", "this", "that", "from", "both", "documents",
+        "document", "compare", "between", "each", "their"
     }
 
     question_words = (
@@ -359,7 +386,8 @@ def question(request: QuestionRequest):
     matches = []
 
     for record in records:
-        text_lower = record.get("text", "").lower()
+        text = record.get("text", "")
+        text_lower = text.lower()
 
         score = sum(
             1 for word in question_words
@@ -370,6 +398,45 @@ def question(request: QuestionRequest):
             matches.append((score, record))
 
     matches.sort(key=lambda item: item[0], reverse=True)
+
+    # Keep relevant records from different documents.
+    selected_records = []
+    selected_documents = set()
+
+    for score, record in matches:
+        document = record.get("document", "unknown")
+
+        if document not in selected_documents:
+            selected_records.append(record)
+            selected_documents.add(document)
+
+        if len(selected_records) >= 5:
+            break
+
+    if selected_records:
+        answer_parts = []
+
+        for record in selected_records:
+            document = record.get("document", "unknown")
+            page = record.get("page", "unknown")
+            text = record.get("text", "").strip()
+
+            answer_parts.append(
+                f"Source: {document}, page {page}\n{text[:1500]}"
+            )
+
+        answer = "\n\n---\n\n".join(answer_parts)
+        sources = [
+            f'{record.get("document", "unknown")}, '
+            f'page {record.get("page", "unknown")}'
+            for record in selected_records
+        ]
+    else:
+        answer = (
+            "No matching information found in the indexed documents. "
+            "Try using specific words that appear in the documents."
+        )
+        sources = []
 
     temperature_words = {
         "temperature", "temperatures", "temp",
@@ -385,16 +452,6 @@ def question(request: QuestionRequest):
         extract_temperature_records(records)
         if asks_temperature else []
     )
-
-    if matches:
-        best = matches[0][1]
-        answer = best.get("text", "")[:1000]
-        sources = [
-            f'{best.get("document")}, page {best.get("page")}'
-        ]
-    else:
-        answer = "No matching information found in extracted documents."
-        sources = []
 
     return {
         "question": request.question,

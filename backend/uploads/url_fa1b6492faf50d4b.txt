@@ -1,0 +1,60 @@
+Site Example — Test Website
+Site Example
+Index
+Images
+Forms
+Tables
+Links
+Media
+Text
+Files
+Site Example
+A public test website. Use it to test scrapers, SEO tools, link checkers, form handlers, and anything else that interacts with web pages.
+All email addresses on this site are dummy and none of them are monitored.
+Recommended for QA automation & testing.
+This site is intentionally published as a stable, public example for QA automation,
+      end-to-end and integration test suites, web-scraping practice, and demos. You are welcome
+      to point automated tests, crawlers, and coding-assistant examples at these pages and their
+      form/table/link/media/file/API endpoints.
+Test Pages
+Images
+SVG, PNG, responsive images, lazy loading, broken images, figures.
+Forms
+All HTML input types, validation, GET and POST forms.
+Tables
+Structured tabular data, sortable columns, various data types.
+Links
+Internal, external, anchors, mailto, tel, broken links.
+Media
+HTML5 video, audio, embedded iframes.
+Text & Typography
+Headings, lists, code, unicode, RTL, special characters.
+Files
+Downloadable CSV, JSON, XML, and plain text files.
+JSON API
+Sample JSON endpoint with CORS headers for API testing.
+Site Metadata
+Canonical URL
+https://www.site-example.com/
+Content-Type
+text/html; charset=utf-8
+Open Graph
+og:title, og:description, og:type, og:url, og:image
+Twitter Card
+summary_large_image
+Structured Data
+JSON-LD (WebSite + Organization)
+Robots
+index, follow
+HTTP Features
+404 Page
+Custom 404 error page
+robots.txt
+/robots.txt
+Sitemap
+/sitemap.xml
+JSON API
+/api/data.json
+(with CORS)
+Site Example — a public test website for developers
+brought to you by pansignal
